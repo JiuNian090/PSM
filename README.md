@@ -6,10 +6,9 @@
 
 ```
 Le-Skills/
-├── Flight-Translator/
-│   └── SKILL.md              # 民航翻译助手
-├── Project-Skills-Manager/
-│   └── SKILL.md              # 项目技能与规则管理器
+├── prompt/                        # 完整版提示词
+│   ├── Flight-Translator.md       # 民航翻译助手完整版
+│   └── Project-Skills-Manager.md # 项目技能与规则管理器完整版
 └── README.md
 ```
 
@@ -21,9 +20,10 @@ Le-Skills/
 
 **功能：**
 - 全场景民航词汇/句子/缩写精准翻译（中→英、英→中）
-- 报文全类型识别与结构化解析
+- 报文全类型识别与结构化解析（METAR/TAF/NOTAM/SIGMET等）
 - 智能意图判别：翻译 / 知识点提问 / 报文解读
 - 今日学习日志与总结
+- 支持图片/文件OCR翻译
 
 ### Project-Skills-Manager
 
@@ -33,6 +33,6 @@ Le-Skills/
 - 整合开源技能项目（ECC、GitNexus、codegraph 等）
 - 评估前端设计技能可用性
 - 筛选安装适用技能
-- 配置技能调度规则、更新日志规则
+- 配置技能调度规则、更新日志规则（按需加载）
 - MCP 改 CLI
 - 技能生命周期管理（升级/卸载）

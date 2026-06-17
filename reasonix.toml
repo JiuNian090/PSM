@@ -1,4 +1,4 @@
-# Reasonix configuration.
+﻿# Reasonix configuration.
 # Resolution order: flag > ./reasonix.toml > ~/AppData/Roaming/reasonix/config.toml > built-in defaults.
 # Secrets come from the environment via api_key_env; never put keys here.
 
@@ -67,8 +67,9 @@ mode  = "ask"
 # bash = "enforce" (default) jails each command in an OS sandbox (macOS now;
 # graceful fallback elsewhere); "off" disables it. network allows egress.
 # workspace_root = ""            # default: current working directory
-# allow_write = ["/tmp"]          # extra dirs writers may also modify
+# allow_write = ["E:\\Code\\Le-skills"]          # extra dirs writers may also modify
 workspace_root = "E:\\Code\\JiunianTV\\LeLeTV"
+allow_write = ["E:\\Code\\Le-skills"]
 bash    = "enforce"
 network = true
 

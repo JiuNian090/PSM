@@ -2,6 +2,22 @@
 name: installing-project-skills
 description: Use when installing skills for a new project, or when the user asks to update, upgrade, uninstall, or check status of project skills
 tree: lifecycle/install
+version: 1.0.0
+author: JiunianTV
+requires: []
+requires_tools:
+  - git
+  - node (>=18)
+platforms:
+  - cursor
+  - windsurf
+  - trae
+  - claude-code
+tags:
+  - lifecycle
+  - install
+  - upgrade
+  - uninstall
 ---
 
 # Installing Project Skills
@@ -18,6 +34,22 @@ Covers the full lifecycle of project skills: first-time install, migration from 
 - User says "更新技能" / "升级技能" / "同步技能" — upgrade existing
 - User says "卸载技能 xxx" — remove a skill
 - User says "查看技能" / "技能状态" — list and verify
+- User says "有什么技能适合我" / "推荐技能" / "discover skills" — skill discovery
+
+## Skill Discovery
+
+When the user asks what skills are available or suitable for their project:
+
+1. **Read the registry** — open `.agents/skills-registry.json` and list all available sources
+2. **Scan project tech stack** — detect `package.json` / `go.mod` / `Cargo.toml` / `requirements.txt`
+3. **Filter by tech stack** — match registry source `filter` and `match` rules against project deps
+4. **Show recommendations** — present a table of available skills with:
+   - ✅ **always** — recommended for every project
+   - ⚠️ **tech-stack** — only if project dependencies match
+   - 🔄 **self-managed** — installed via their own CLI
+5. **Ask user** which ones to install, then proceed to Core Flow step 5 (confirmation)
+
+Also check `.agents/skills-config.json` for user-defined custom sources and include them in the recommendation list.
 
 ## Core Flow
 
@@ -49,37 +81,62 @@ Search `**/SKILL.md` and `**/skill.md` across the project. Target dirs: `.agents
 3. **If no:** Leave as-is, but record in INDEX.md as "未提取（用户选择保留）"
 4. **If AGENTS.md doesn't exist:** Generate AGENTS.md with the required loading chain reference
 
-**Loading chain:** Ensure AGENTS.md has the mandatory rule-loading instruction. If not, inject:
+**Loading chain:** Ensure AGENTS.md has the mandatory skill tree entry. If not, inject:
 ```markdown
----
-## psm 规则加载链
+## psm 技能树入口
 
-**每次任务开始前必须加载以下规则文件：**
-- `.agents/rules/project-rules.md` — 全量加载
-- `.agents/rules/skill-scheduling-rules.md` — 按需加载
-- `.agents/rules/code-standards-rules.md` — 按需加载
-- `.agents/rules/version-management-rules.md` — 按需加载
+读取 `.agents/skills/INDEX.md` 了解技能树和按需加载规则。
 ```
 
 **CLAUDE.md:** If CLAUDE.md exists and doesn't have `@AGENTS.md`, prepend it. This is automatically handled by `npx psm install`.
 
-### 3. Integrate Upstream Repos
+### 3. Read Skill Registry
 
-Clone or pull from these skill sources. Use the **skill mapping** below to extract applicable skills — do NOT blindly copy all files.
+Read `.agents/skills-registry.json` to discover available skill sources. The registry defines:
 
-| Repo | Available skills | Applies to | Install when |
-|---|---|---|---|
-| `affaan-m/ECC` | `frontend-react`, `frontend-vue`, `testing-cypress`, `testing-jest`, `api-client`, `state-management` | React / Vue / Node projects | Project uses React/Vue/Node + matching framework |
-| `abhigyanpatwari/GitNexus` | `gitnexus-*` (Git code intelligence, blame, log analysis) | Any project using git | Always (self-managed — do NOT migrate) |
-| `colbymchenry/codegraph` | `codegraph-*` (symbol search, call graph, impact analysis) | Any project (Go/Python/TS/JS) | Always (self-managed — do NOT migrate) |
-| `obra/superpowers` | `test-driven-development`, `systematic-debugging`, `verification-loop`, `flatten-with-flags`, `condition-based-waiting` | Any project | Always — general engineering patterns |
-| `multica-ai/andrej-karpathy-skills` | `karpathy-engineering`, `karpathy-debugging`, `karpathy-architecture` | Any project | Always — engineering discipline |
-| `pbakaus/impeccable` | `impeccable-code-review`, `impeccable-ui` | Frontend / Full-stack | Only if project has a UI framework (React/Vue/Angular/Svelte) |
-| `Leonxlnx/taste-skill` | `taste-frontend`, `taste-design` | Frontend / Full-stack | Only if project has a UI framework and prioritises design quality |
+- **Source name & URL** — where to clone from
+- **Filter rule** — `always` (install for every project) or `tech-stack` (only when dependencies match)
+- **Skill list** — which skills each source provides
+- **selfManaged** — tools that manage their own skill directories (GitNexus, codegraph), skip migration
 
-**Self-managed tools** (GitNexus, codegraph): they automatically download/update skills to their own directories via CLI. Detect and skip during migration — do NOT move them into `.agents/skills/`.
+```json
+// 示例：skills-registry.json 结构
+{
+  "sources": [
+    { "name": "superpowers", "filter": "always" },
+    { "name": "ecc", "filter": "tech-stack", "match": { "dependencies": ["react", "vue"] } },
+    { "name": "gitnexus", "selfManaged": true }
+  ],
+  "customSources": { "hint": "新建 .agents/skills-config.json 可自定义源" }
+}
+```
 
-**Design skill evaluation rule:** Only install `impeccable` and `taste-skill` when `package.json` exists AND includes a UI framework dependency (react/vue/angular/svelte). Otherwise skip with a note.
+**Self-managed tools** (marked `selfManaged: true`): they automatically download/update skills to their own directories via CLI. Detect and skip during migration — do NOT move them into `.agents/skills/`.
+
+**Design skill evaluation rule:** For sources with `filter: tech-stack`, check the project's dependency files (`package.json`, `go.mod`, etc.) against the `match` criteria. Only install when the project's dependencies satisfy the match.
+
+### 3a. Custom Sources (User Config)
+
+Check if `.agents/skills-config.json` exists in the project. If it does, merge its `customSources` into the registry:
+
+```json
+// .agents/skills-config.json — 用户自定义技能源
+{
+  "customSources": [
+    {
+      "name": "my-team-skills",
+      "url": "https://github.com/myorg/team-skills",
+      "filter": "always",
+      "skills": ["my-standards", "my-deployment"]
+    }
+  ],
+  "ignore": ["impeccable-ui"],        // 强制忽略某些技能
+  "alwaysInstall": ["my-standards"]     // 强制安装某些技能
+}
+```
+
+**Template:** `.agents/skills-config.template.json` can be copied as a starting point.
+**Note:** This file is NEVER overwritten by `psm install`, so users can safely customize it.
 
 ### 4. Tech-Stack Filtering
 
@@ -125,8 +182,8 @@ Show the user a structured summary:
   □ version-management-rules.md  ← 如 AGENTS.md 中有版本管理规则
   □ code-standards-rules.md      ← 如 AGENTS.md 中有代码规范规则
 
-【待注入】加载链
-  □ AGENTS.md → 强制加载 .agents/rules/
+【待注入】技能树入口
+  □ AGENTS.md → 指向 .agents/skills/INDEX.md
   □ CLAUDE.md → @AGENTS.md（如不存在）
 ```
 

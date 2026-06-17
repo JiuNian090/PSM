@@ -59,6 +59,34 @@ function die(msg, code = EXIT.ERR_UNKNOWN) {
 }
 
 /**
+ * Read the skills registry JSON from the package.
+ * Returns the parsed registry object, or null if not found.
+ */
+function readRegistry() {
+  const registryPath = path.join(PKG_DIR, '.agents', 'skills-registry.json');
+  if (!fs.existsSync(registryPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read user's custom skills-config.json from the target project.
+ * Returns an object with customSources/ignore/alwaysInstall, or empty defaults.
+ */
+function readUserConfig(target) {
+  const configPath = path.join(target || '.', '.agents', 'skills-config.json');
+  if (!fs.existsSync(configPath)) return { customSources: [], ignore: [], alwaysInstall: [] };
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  } catch {
+    return { customSources: [], ignore: [], alwaysInstall: [] };
+  }
+}
+
+/**
  * Create a timestamped backup of a path before modifying it.
  * Returns the backup path or null if nothing was backed up.
  */
@@ -360,10 +388,10 @@ function scanCodeStandards(content) {
 }
 
 /**
- * Check if AGENTS.md already has psm loading chain injected.
+ * Check if AGENTS.md already has psm skill tree entry injected.
  */
 function hasLoadingChain(content) {
-  return /每次任务开始前必须加载以下规则文件/.test(content);
+  return /psm 技能树入口/.test(content);
 }
 
 /**
@@ -663,18 +691,18 @@ function findLineNumber(content, sourceFile, target) {
 }
 
 /**
- * Confirm and inject loading chain into AGENTS.md.
+ * Confirm and inject skill tree entry into AGENTS.md.
  */
 async function confirmInjectLoadingChain(target, autoYes = false) {
   const agentsPath = path.join(target, 'AGENTS.md');
   if (!fs.existsSync(agentsPath)) return false;
   let content = fs.readFileSync(agentsPath, 'utf-8');
-  if (/每次任务开始前必须加载以下规则文件/.test(content)) return false; // already has it
+  if (/psm 技能树入口/.test(content)) return false; // already has it
 
   if (!autoYes) {
     console.log(`\n${yellow('═══ AGENTS.md 注入 ═══')}`);
-    console.log('需要在 AGENTS.md 末尾添加 psm 规则加载链，确保 AI Agent 自动加载规则文件。');
-    const ok = await askYesNo('是否注入规则加载链？', true);
+    console.log('需要在 AGENTS.md 末尾添加 psm 技能树入口引用，确保 AI Agent 加载技能树。');
+    const ok = await askYesNo('是否注入技能树入口引用？', true);
     if (!ok) {
       console.log(cyan('  → 跳过'));
       return false;
@@ -687,7 +715,7 @@ async function confirmInjectLoadingChain(target, autoYes = false) {
   }
   fs.copyFileSync(agentsPath, path.join(backupPath, 'AGENTS.md'));
 
-  const injection = `\n---\n\n## psm 规则加载链\n\n> 本段由 psm install 自动注入\n\n**每次任务开始前必须加载以下规则文件：**\n- \`.agents/rules/project-rules.md\` — 全量加载，含任务分类铁律和技能入口映射\n- \`.agents/rules/skill-scheduling-rules.md\` — 按需加载，含难度判断/场景流程/开发工作流\n- \`.agents/rules/code-standards-rules.md\` — 按需加载，修改代码时应用\n- \`.agents/rules/version-management-rules.md\` — 按需加载，版本发布/CHANGELOG 时应用\n\n`;
+  const injection = `\n---\n## psm 技能树入口\n\n读取 \`.agents/skills/INDEX.md\` 了解技能树和按需加载规则。\n`;
   content += injection;
   fs.writeFileSync(agentsPath, content, 'utf-8');
   return true;
@@ -825,7 +853,7 @@ function showInstallPlan(target, plan) {
   console.log(`  ${cyan('Actions to perform:')}`);
   console.log(`    ${green('1')} Copy .agents/  →  skills + rules`);
   if (plan.needsLoadingChain) {
-    console.log(`    ${green('2')} Inject loading chain into AGENTS.md`);
+    console.log(`    ${green('2')} Add skill tree entry to AGENTS.md`);
   }
   if (plan.needsClaudeRef) {
     console.log(`    ${green('3')} Add @AGENTS.md reference to CLAUDE.md`);
@@ -858,6 +886,8 @@ ${cyan('Usage:')}
   npx psm check        [target]
   npx psm info         [target]
   npx psm list
+  npx psm registry
+  npx psm discover     [target]
   npx psm outdated
   npx psm update
   npx psm version / -v
@@ -867,6 +897,10 @@ ${cyan('Install options:')}
   -y, --yes          Skip prompts, overwrite existing
   --preview          Show install plan only, do not install
 
+${cyan('Registry commands:')}
+  npx psm registry              List all skill sources from registry
+  npx psm discover [target]     Show skills matching this project's tech stack
+
 ${cyan('Examples:')}
   npx psm install                  Install into current directory
   npx psm install ../my-app        Install into ../my-app
@@ -874,6 +908,8 @@ ${cyan('Examples:')}
   npx psm install -y               Quiet install, overwrite existing
   npx psm check                    Check current directory
   npx psm info                     Show version + env + status
+  npx psm registry                 List available skill sources
+  npx psm discover                 Discover matching skills for this project
 `);
 }
 
@@ -881,7 +917,111 @@ function cmdVersion() {
   console.log(`psm v${VERSION}`);
 }
 
-// ---- list ----
+// ---- registry ----
+
+function cmdRegistry() {
+  const registry = readRegistry();
+  if (!registry) {
+    die('skills-registry.json not found in package.');
+  }
+
+  console.log(`\n${green('PSM Skill Registry')}`);
+  console.log(`  Version: ${registry.version}`);
+  console.log(`  Sources: ${registry.sources.length}\n`);
+
+  for (const src of registry.sources) {
+    const tag = src.selfManaged ? '🔄 self-managed'
+              : src.filter === 'always' ? '✅ always'
+              : '⚠️  tech-stack';
+    console.log(`  ${cyan(src.name)} ${dim(`(${tag})`)}`);
+    console.log(`      ${src.description}`);
+    if (src.skills.length > 0) {
+      console.log(`      Skills: ${src.skills.join(', ')}`);
+    }
+    if (src.filter === 'tech-stack' && src.match) {
+      const deps = src.match.dependencies || [];
+      const files = src.match.files || [];
+      console.log(`      Matches: ${[...deps, ...files].join(', ')}`);
+    }
+    console.log();
+  }
+}
+
+// ---- discover ----
+
+function cmdDiscover(targetDir) {
+  const target = path.resolve(targetDir || process.cwd());
+  const registry = readRegistry();
+  if (!registry) {
+    die('skills-registry.json not found in package.');
+  }
+
+  // Detect tech stack
+  const projectType = detectProjectType(target);
+  const pkgJsonPath = path.join(target, 'package.json');
+  let dependencies = [];
+  if (fs.existsSync(pkgJsonPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      dependencies = Object.keys(pkg.dependencies || {}).concat(Object.keys(pkg.devDependencies || {}));
+    } catch {}
+  }
+
+  // Read user config
+  const userConfig = readUserConfig(target);
+
+  console.log(`\n${green('PSM Skill Discovery')}`);
+  console.log(`  Project: ${target}`);
+  console.log(`  Type:    ${projectType}`);
+  console.log(`  Dependencies: ${dependencies.length > 0 ? dependencies.slice(0, 10).join(', ') + (dependencies.length > 10 ? '...' : '') : '(none detected)'}`);
+  console.log();
+
+  // Always-install sources
+  const always = registry.sources.filter(s => s.filter === 'always' && !s.selfManaged);
+  const techStack = registry.sources.filter(s => s.filter === 'tech-stack');
+  const selfManaged = registry.sources.filter(s => s.selfManaged);
+
+  console.log(`${green('✅ Always recommended')}`);
+  for (const src of always) {
+    console.log(`  ${cyan(src.name)} — ${src.description}`);
+    console.log(`    Skills: ${src.skills.join(', ')}`);
+  }
+  console.log();
+
+  // Tech-stack matched
+  const matched = techStack.filter(src => {
+    if (!src.match || !src.match.dependencies) return dependencies.length > 0;
+    return src.match.dependencies.some(d => dependencies.includes(d));
+  });
+  if (matched.length > 0) {
+    console.log(`${yellow('⚠️  Tech-stack matched (recommended)')}`);
+    for (const src of matched) {
+      console.log(`  ${cyan(src.name)} — ${src.description}`);
+      console.log(`    Skills: ${src.skills.join(', ')}`);
+    }
+    console.log();
+  }
+
+  // Self-managed
+  console.log(`${dim('🔄 Self-managed (install via their own CLI)')}`);
+  for (const src of selfManaged) {
+    console.log(`  ${dim(src.name)} — ${src.description}`);
+  }
+  console.log();
+
+  // User custom sources
+  if (userConfig.customSources.length > 0) {
+    console.log(`${cyan('📦 Custom sources (from .agents/skills-config.json)')}`);
+    for (const src of userConfig.customSources) {
+      console.log(`  ${src.name} — ${src.description || '(no description)'}`);
+    }
+    console.log();
+  }
+
+  if (!always.length && !matched.length && !selfManaged.length && !userConfig.customSources.length) {
+    console.log('  No skills matched your project.\n');
+  }
+}
 
 function cmdList() {
   const skillsDir = path.join(PKG_DIR, '.agents', 'skills');
@@ -1080,7 +1220,7 @@ async function cmdInstall(targetDir, opts = {}) {
   // ── Done ──
   const hasNodeBootstrap = fs.existsSync(path.join(target, 'scripts', 'bootstrap.js'));
   console.log(`\n${green('Installation complete!')}`);
-  if (chainInjected) console.log(green('  AGENTS.md 规则加载链已注入'));
+  if (chainInjected) console.log(green('  AGENTS.md 技能树入口已注入'));
   if (claudeRefInjected) console.log(green('  CLAUDE.md @AGENTS.md 引用已注入'));
 
   console.log(cyan('Run the bootstrap check:'));
@@ -1172,10 +1312,10 @@ function cmdInfo(targetDir) {
     }).length;
     console.log(`  Skills         ${count} installed ${green('✓')}`);
 
-    // Check loading chain
+    // Check skill tree entry
     if (fs.existsSync(agentsPath)) {
       const content = fs.readFileSync(agentsPath, 'utf-8');
-      console.log(`  Loading chain  ${hasLoadingChain(content) ? green('present') : yellow('missing')}`);
+      console.log(`  Skill tree      ${hasLoadingChain(content) ? green('present') : yellow('missing')}`);
     }
   } else {
     console.log(`  Skills         ${yellow('not installed')}`);
@@ -1251,6 +1391,12 @@ function main() {
       break;
     case 'list':
       cmdList();
+      break;
+    case 'registry':
+      cmdRegistry();
+      break;
+    case 'discover':
+      cmdDiscover(args[1]);
       break;
     case 'outdated':
       cmdOutdated();

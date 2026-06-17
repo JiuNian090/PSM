@@ -2,6 +2,20 @@
 name: generating-changelogs
 description: Use when the user says "更新更新日志为 vx.x.x" or "update changelog" or any request to generate or update a CHANGELOG.md from git history
 tree: release/changelog
+version: 1.0.0
+author: JiunianTV
+requires: []
+requires_tools:
+  - git
+platforms:
+  - cursor
+  - windsurf
+  - trae
+  - claude-code
+tags:
+  - release
+  - changelog
+  - versioning
 ---
 
 # Generating Changelogs

@@ -2,6 +2,19 @@
 name: scheduling-project-skills
 description: Use when orchestrating multiple skills for a task — determining execution order, parallelism, and difficulty grading. Also use when the user asks how skills are dispatched
 tree: schedule/orchestrate
+version: 1.0.0
+author: JiunianTV
+requires: []
+requires_tools: []
+platforms:
+  - cursor
+  - windsurf
+  - trae
+  - claude-code
+tags:
+  - orchestration
+  - scheduling
+  - difficulty
 ---
 
 # Scheduling Project Skills

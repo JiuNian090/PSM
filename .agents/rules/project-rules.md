@@ -98,7 +98,7 @@
 
 ### 第 0 步：加载规则文件
 
-- 本文件已由 AGENTS.md 指令加载（全量加载）
+- 本文件由 AGENTS.md 引用的技能树入口加载（全量加载）
 - 技能树导航见 `.agents/skills/INDEX.md`（优先读取，了解技能层级关系）
 - 如需技能调度细则，加载 `.agents/rules/skill-scheduling-rules.md`
 ### 第一步：任务分类

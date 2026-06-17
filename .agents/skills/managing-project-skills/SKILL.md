@@ -2,6 +2,23 @@
 name: managing-project-skills
 description: Use when the user asks to install, update, upgrade, uninstall, or check status of project skills and rules, or when setting up skills for a new project
 tree: root
+version: 1.0.0
+author: JiunianTV
+requires:
+  - installing-project-skills
+  - scheduling-project-skills
+  - generating-changelogs
+requires_tools:
+  - git
+platforms:
+  - cursor
+  - windsurf
+  - trae
+  - claude-code
+tags:
+  - core
+  - orchestrator
+  - lifecycle
 ---
 
 # Managing Project Skills

@@ -23,5 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Update version from tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          jq --arg v "$TAG" '.version = $v' package.json > package.tmp.json
+          mv package.tmp.json package.json
+
       - name: Publish to npm
         run: npm publish --provenance
